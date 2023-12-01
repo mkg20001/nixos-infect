@@ -37,9 +37,8 @@ makeConf() {
   local linode_import=""
 
   [[ -n "$doNetConf" ]] && network_import="./networking.nix # generated at runtime by nixos-infect"
-  [[ "$PROVIDER" == "linode" ]] && (
-    linode_import="./linode.nix"
-    echo '# Linode custom config
+  [[ "$PROVIDER" == "linode" ]] && linode_import="./linode.nix"
+  [[ "$PROVIDER" == "linode" ]] && echo '# Linode custom config
 { config, pkgs, lib, ... }:
 
 with lib;
@@ -47,11 +46,11 @@ with lib;
 {
   boot.kernelParams = [ "console=ttyS0,19200n8" ];
 
-  boot.loader.grub.extraConfig = ''
+  boot.loader.grub.extraConfig = "
     serial --speed=19200 --unit=0 --word=8 --parity=no --stop=1;
     terminal_input serial;
     terminal_output serial
-  '';
+  ";
 
   boot.loader.grub.forceInstall = true;
 
@@ -67,7 +66,6 @@ with lib;
 ' > /etc/nixos/linode.nix
   hostname 6in4
   echo -n 6in4 > /etc/hostname
-  )
   cat > /etc/nixos/configuration.nix << EOF
 { ... }: {
   imports = [
