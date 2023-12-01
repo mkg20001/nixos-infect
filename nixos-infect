@@ -8,6 +8,9 @@ autodetectProvider() {
   if [ -e /etc/hetzner-build ]; then
     PROVIDER="hetznercloud"
   fi
+  if [ -e /etc/cloud/cloud.cfg.d/99-linode.cfg ]; then
+    PROVIDER="linode"
+  fi
 }
 
 makeConf() {
@@ -31,12 +34,45 @@ makeConf() {
       && break
   done
   local network_import=""
+  local linode_import=""
 
   [[ -n "$doNetConf" ]] && network_import="./networking.nix # generated at runtime by nixos-infect"
+  [[ "$PROVIDER" == "linode" ]] && (
+    linode_import="./linode.nix"
+    echo '# Linode custom config
+{ config, pkgs, lib, ... }:
+
+with lib;
+
+{
+  boot.kernelParams = [ "console=ttyS0,19200n8" ];
+
+  boot.loader.grub.extraConfig = ''
+    serial --speed=19200 --unit=0 --word=8 --parity=no --stop=1;
+    terminal_input serial;
+    terminal_output serial
+  '';
+
+  boot.loader.grub.forceInstall = true;
+
+  boot.loader.grub.device = mkForce "nodev";
+  boot.loader.timeout = mkForce 10;
+
+  environment.systemPackages = with pkgs; [
+    inetutils
+    mtr
+    sysstat
+  ];
+}
+' > /etc/nixos/linode.nix
+  hostname 6in4
+  echo -n 6in4 > /etc/hostname
+  )
   cat > /etc/nixos/configuration.nix << EOF
 { ... }: {
   imports = [
     ./hardware-configuration.nix
+    $linode_import
     $network_import
     $NIXOS_IMPORT
   ];
@@ -384,6 +420,7 @@ if [ ! -v PROVIDER ]; then
   autodetectProvider
 fi
 
+[ "$PROVIDER" = "linode" ] && doNetConf=y
 [ "$PROVIDER" = "digitalocean" ] && doNetConf=y # digitalocean requires detailed network config to be generated
 [ "$PROVIDER" = "lightsail" ] && newrootfslabel="nixos"
 if [[ "$PROVIDER" = "digitalocean" ]] || [[ "$PROVIDER" = "servarica" ]] || [[ "$PROVIDER" = "hetznercloud" ]]; then
